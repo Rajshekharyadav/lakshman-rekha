@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { parseSchemesCSV, parseCrimePDF, getStateCoordinates } from "./lib/data-parser";
 import { analyzeSafetyRisk, getCropRecommendations, predictDisasterRisk } from "./lib/gemini";
+import bcrypt from "bcrypt";
+import { storage } from "./storage";
+import { insertUserSchema } from "@shared/schema";
 
 // Cache for parsed data
 let schemesCache: any[] = [];
@@ -20,6 +23,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } catch (error) {
     console.error('❌ Data loading error:', error);
   }
+
+  // POST /api/auth/signup - User registration
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { username, email, phoneNumber, password, authProvider } = req.body;
+
+      // Validate required fields based on auth provider
+      if (authProvider === 'username' && (!username || !password)) {
+        return res.status(400).json({ error: 'Username and password required' });
+      }
+      if (authProvider === 'google' && !email) {
+        return res.status(400).json({ error: 'Email required for Google auth' });
+      }
+      if (authProvider === 'phone' && !phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+      }
+
+      // Check if user already exists
+      if (username) {
+        const existingUser = await storage.getUserByUsername(username);
+        if (existingUser) {
+          return res.status(409).json({ error: 'Username already exists' });
+        }
+      }
+      if (email) {
+        const existingUser = await storage.getUserByEmail(email);
+        if (existingUser) {
+          return res.status(409).json({ error: 'Email already exists' });
+        }
+      }
+      if (phoneNumber) {
+        const existingUser = await storage.getUserByPhone(phoneNumber);
+        if (existingUser) {
+          return res.status(409).json({ error: 'Phone number already exists' });
+        }
+      }
+
+      // Hash password if provided
+      let passwordHash = null;
+      if (password) {
+        passwordHash = await bcrypt.hash(password, 10);
+      }
+
+      // Create user
+      const userData = insertUserSchema.parse({
+        username: username || null,
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+        passwordHash,
+        displayName: username || email?.split('@')[0] || null,
+        authProvider: authProvider || 'username',
+      });
+
+      const user = await storage.createUser(userData);
+      
+      // Don't send password hash to client
+      const { passwordHash: _, ...userResponse } = user;
+      res.status(201).json({ user: userResponse });
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      res.status(500).json({ error: error.message || 'Failed to create user' });
+    }
+  });
+
+  // POST /api/auth/login - User login
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, email, phoneNumber, password } = req.body;
+
+      // Find user by username, email, or phone
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      } else if (email) {
+        user = await storage.getUserByEmail(email);
+      } else if (phoneNumber) {
+        user = await storage.getUserByPhone(phoneNumber);
+      }
+
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      // Verify password if user has password auth
+      if (user.passwordHash && password) {
+        const isValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isValid) {
+          return res.status(401).json({ error: 'Invalid credentials' });
+        }
+      } else if (user.passwordHash && !password) {
+        return res.status(401).json({ error: 'Password required' });
+      }
+
+      // Don't send password hash to client
+      const { passwordHash: _, ...userResponse } = user;
+      res.json({ user: userResponse });
+    } catch (error: any) {
+      console.error('Login error:', error);
+      res.status(500).json({ error: error.message || 'Failed to login' });
+    }
+  });
 
   // GET /api/schemes - Fetch government schemes with filters
   app.get("/api/schemes", async (req, res) => {
