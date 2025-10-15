@@ -3,12 +3,16 @@ import { pgTable, text, varchar, timestamp, jsonb, real, integer } from "drizzle
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table for Firebase authenticated users
+// Users table for multiple authentication methods
 export const users = pgTable("users", {
   id: varchar("id").primaryKey(),
-  email: text("email").notNull().unique(),
+  username: text("username").unique(),
+  email: text("email").unique(),
+  phoneNumber: text("phone_number").unique(),
+  passwordHash: text("password_hash"),
   displayName: text("display_name"),
   photoURL: text("photo_url"),
+  authProvider: text("auth_provider").notNull().default('username'),
   location: jsonb("location").$type<{ lat: number; lng: number; address?: string }>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
