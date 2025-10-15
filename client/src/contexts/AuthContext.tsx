@@ -71,24 +71,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleFirebaseUser = async (firebaseUser: FirebaseUser, provider: string) => {
     try {
-      // Register or login the user with our backend
-      const response = await apiRequest('/api/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          authProvider: provider,
-        }),
+      // Try to register the user first
+      const response = await apiRequest('POST', '/api/auth/signup', {
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+        authProvider: provider,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-        localStorage.setItem('sarthi_user', JSON.stringify(data.user));
+      const data = await response.json();
+      setUser(data.user);
+      localStorage.setItem('sarthi_user', JSON.stringify(data.user));
+    } catch (error: any) {
+      // If user already exists (409 conflict), login with email
+      if (error.message && error.message.includes('409')) {
+        try {
+          const loginResponse = await apiRequest('POST', '/api/auth/login', {
+            email: firebaseUser.email,
+          });
+          const data = await loginResponse.json();
+          setUser(data.user);
+          localStorage.setItem('sarthi_user', JSON.stringify(data.user));
+        } catch (loginError) {
+          console.error('Login error after conflict:', loginError);
+        }
+      } else {
+        console.error('Backend sync error:', error);
       }
-    } catch (error) {
-      console.error('Backend sync error:', error);
     }
   };
 
@@ -122,16 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithCredentials = async (username: string, password: string) => {
     try {
-      const response = await apiRequest('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Login failed');
-      }
-
+      const response = await apiRequest('POST', '/api/auth/login', { username, password });
       const data = await response.json();
       setUser(data.user);
       localStorage.setItem('sarthi_user', JSON.stringify(data.user));
@@ -143,16 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (data: { username?: string; email?: string; phoneNumber?: string; password?: string; authProvider: string }) => {
     try {
-      const response = await apiRequest('/api/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Signup failed');
-      }
-
+      const response = await apiRequest('POST', '/api/auth/signup', data);
       const result = await response.json();
       setUser(result.user);
       localStorage.setItem('sarthi_user', JSON.stringify(result.user));
