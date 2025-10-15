@@ -17,4 +17,8 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Google Auth Provider - Configured for popup authentication
+// Sign-up/Sign-in uses signInWithPopup for desktop browsers
+// Mobile devices automatically fallback to signInWithRedirect
 export const googleProvider = new GoogleAuthProvider();

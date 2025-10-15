@@ -82,6 +82,7 @@ export const safetyCheckIns = pgTable("safety_check_ins", {
 
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
   createdAt: true,
 });
 
