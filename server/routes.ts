@@ -1,0 +1,190 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { parseSchemesCSV, parseCrimePDF, getStateCoordinates } from "./lib/data-parser";
+import { analyzeSafetyRisk, getCropRecommendations, predictDisasterRisk } from "./lib/gemini";
+
+// Cache for parsed data
+let schemesCache: any[] = [];
+let crimeDataCache: any[] = [];
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize data on server start
+  try {
+    schemesCache = await parseSchemesCSV();
+    const crimeData = await parseCrimePDF();
+    crimeDataCache = crimeData.map(crime => ({
+      ...crime,
+      location: getStateCoordinates(crime.state),
+    }));
+    console.log(`✅ Loaded ${schemesCache.length} schemes and ${crimeDataCache.length} crime zones`);
+  } catch (error) {
+    console.error('❌ Data loading error:', error);
+  }
+
+  // GET /api/schemes - Fetch government schemes with filters
+  app.get("/api/schemes", async (req, res) => {
+    try {
+      const { search, category, level } = req.query;
+      
+      let filtered = [...schemesCache];
+      
+      if (search) {
+        const searchLower = (search as string).toLowerCase();
+        filtered = filtered.filter(s => 
+          s.name.toLowerCase().includes(searchLower) ||
+          s.details.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      if (category && category !== 'all') {
+        filtered = filtered.filter(s => 
+          s.category?.toLowerCase() === (category as string).toLowerCase()
+        );
+      }
+      
+      if (level && level !== 'all') {
+        filtered = filtered.filter(s => 
+          s.level?.toLowerCase() === (level as string).toLowerCase()
+        );
+      }
+      
+      res.json(filtered);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch schemes' });
+    }
+  });
+
+  // GET /api/crime-zones - Fetch danger zones
+  app.get("/api/crime-zones", async (req, res) => {
+    try {
+      res.json(crimeDataCache);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch crime zones' });
+    }
+  });
+
+  // POST /api/analyze-location - Analyze safety risk for location
+  app.post("/api/analyze-location", async (req, res) => {
+    try {
+      const { lat, lng, state } = req.body;
+      
+      if (!lat || !lng) {
+        return res.status(400).json({ error: 'Location coordinates required' });
+      }
+      
+      const analysis = await analyzeSafetyRisk({ lat, lng, state });
+      res.json(analysis);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to analyze location' });
+    }
+  });
+
+  // POST /api/safety-checkin - Save safety check-in (handled by Firebase client SDK)
+  app.post("/api/safety-checkin", async (req, res) => {
+    try {
+      const { userId, location, status, zoneRiskLevel } = req.body;
+      
+      if (!userId || !location || !status) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      // Safety check-ins are handled by Firebase client SDK on frontend
+      res.json({ success: true, message: 'Check-in acknowledged' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process check-in' });
+    }
+  });
+
+  // GET /api/safety-history/:userId - Get user's safety history (handled by Firebase client SDK)
+  app.get("/api/safety-history/:userId", async (req, res) => {
+    try {
+      // Safety history is accessed through Firebase client SDK on frontend
+      res.json([]);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch history' });
+    }
+  });
+
+  // GET /api/weather - Fetch weather data (mock for now)
+  app.get("/api/weather", async (req, res) => {
+    try {
+      const { location } = req.query;
+      
+      // Mock weather data - would integrate with OpenWeatherMap API
+      const weatherData = {
+        location: location || 'New Delhi',
+        temperature: Math.floor(Math.random() * 15) + 25, // 25-40°C
+        condition: ['Sunny', 'Partly Cloudy', 'Cloudy', 'Rainy'][Math.floor(Math.random() * 4)],
+        humidity: Math.floor(Math.random() * 40) + 40, // 40-80%
+        windSpeed: Math.floor(Math.random() * 20) + 5, // 5-25 km/h
+        forecast: Array.from({ length: 5 }, (_, i) => ({
+          day: ['Today', 'Tomorrow', 'Wed', 'Thu', 'Fri'][i],
+          temp: Math.floor(Math.random() * 10) + 28,
+          condition: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'][Math.floor(Math.random() * 4)],
+        }))
+      };
+      
+      res.json(weatherData);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch weather' });
+    }
+  });
+
+  // POST /api/predict-disaster - AI disaster prediction
+  app.post("/api/predict-disaster", async (req, res) => {
+    try {
+      const { location, temperature, humidity, rainfall } = req.body;
+      
+      const prediction = await predictDisasterRisk({
+        location,
+        temperature,
+        humidity,
+        rainfall
+      });
+      
+      res.json(prediction);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to predict disaster' });
+    }
+  });
+
+  // GET /api/crop-recommendations - Get AI crop recommendations
+  app.get("/api/crop-recommendations", async (req, res) => {
+    try {
+      const { district, state, soilType, fertilityRating } = req.query;
+      
+      if (!district || !state) {
+        return res.status(400).json({ error: 'District and state required' });
+      }
+      
+      const recommendations = await getCropRecommendations({
+        district: district as string,
+        state: state as string,
+        soilType: (soilType as string) || 'Loam',
+        fertilityRating: parseFloat(fertilityRating as string) || 8.0
+      });
+      
+      res.json(recommendations);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to get recommendations' });
+    }
+  });
+
+  // POST /api/analyze-crop-disease - Crop disease detection (placeholder)
+  app.post("/api/analyze-crop-disease", async (req, res) => {
+    try {
+      // This would use OpenAI vision API to analyze leaf images
+      // Placeholder for now
+      res.json({
+        disease: 'Feature coming soon',
+        confidence: 0,
+        treatment: 'Upload functionality will be available in next update'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Feature not available' });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
