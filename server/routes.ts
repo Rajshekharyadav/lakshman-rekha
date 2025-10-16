@@ -161,12 +161,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/crime-zones - Fetch danger zones
+  // GET /api/crime-zones - Fetch danger zones with optional filters
   app.get("/api/crime-zones", async (req, res) => {
     try {
-      res.json(crimeDataCache);
+      const { state, search, riskLevel } = req.query;
+      
+      let filtered = [...crimeDataCache];
+      
+      // Filter by state
+      if (state && state !== 'all') {
+        filtered = filtered.filter(zone => 
+          zone.state.toLowerCase() === (state as string).toLowerCase()
+        );
+      }
+      
+      // Search across state names
+      if (search) {
+        const searchLower = (search as string).toLowerCase();
+        filtered = filtered.filter(zone => 
+          zone.state.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Filter by risk level
+      if (riskLevel && riskLevel !== 'all') {
+        filtered = filtered.filter(zone => 
+          zone.riskLevel === riskLevel
+        );
+      }
+      
+      // Sort by total crimes (descending)
+      filtered.sort((a, b) => b.totalCrimes - a.totalCrimes);
+      
+      res.json(filtered);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch crime zones' });
+    }
+  });
+  
+  // GET /api/crime-zones/:state - Get specific state crime data
+  app.get("/api/crime-zones/:state", async (req, res) => {
+    try {
+      const stateName = req.params.state.toUpperCase();
+      const stateData = crimeDataCache.find(zone => 
+        zone.state.toUpperCase() === stateName
+      );
+      
+      if (!stateData) {
+        return res.status(404).json({ error: 'State data not found' });
+      }
+      
+      res.json(stateData);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch state data' });
     }
   });
 
@@ -267,9 +314,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(weatherData);
     } catch (error) {
       console.error('Weather API error:', error);
+      const { lat, lng, location } = req.query;
       // Return fallback data on error
       res.json({
-        location: location || 'New Delhi, IN',
+        location: (location as string) || 'New Delhi, IN',
         temperature: 28,
         condition: 'Clear',
         description: 'clear sky',
@@ -278,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pressure: 1013,
         visibility: 10,
         icon: '01d',
-        coords: { lat: lat || 28.7041, lng: lng || 77.1025 }
+        coords: { lat: parseFloat((lat as string) || '28.7041'), lng: parseFloat((lng as string) || '77.1025') }
       });
     }
   });

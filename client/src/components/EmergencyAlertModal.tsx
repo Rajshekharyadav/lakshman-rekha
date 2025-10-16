@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,12 +20,14 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
   const [countdown, setCountdown] = useState(30);
   const [alarmActive, setAlarmActive] = useState(false);
   const [status, setStatus] = useState<'pending' | 'safe' | 'emergency'>('pending');
+  const [autoSosCountdown, setAutoSosCountdown] = useState(20);
 
   useEffect(() => {
     if (!open) {
       setCountdown(30);
       setAlarmActive(false);
       setStatus('pending');
+      setAutoSosCountdown(20);
       // Stop any playing audio
       if ((window as any).emergencyAudio) {
         (window as any).emergencyAudio.pause();
@@ -37,7 +39,6 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
     const interval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
-          setAlarmActive(true);
           return 0;
         }
         return prev - 1;
@@ -47,43 +48,77 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
     return () => clearInterval(interval);
   }, [open]);
 
+  // Define triggerSOS before it's used in effects
+  const triggerSOS = useCallback(() => {
+    // This would trigger actual emergency call
+    console.log('SOS TRIGGERED - Emergency services contacted');
+    alert('Emergency services have been notified. Help is on the way!');
+    onClose();
+  }, [onClose]);
+
   useEffect(() => {
     if (countdown === 0 && !alarmActive) {
-      setAlarmActive(true);
-      // Play police sound after 30 seconds
+      // Play police sound after countdown reaches zero
       const audio = new Audio('/Police.mp3');
       audio.loop = true;
       audio.play().catch(console.error);
       
       // Store audio reference to stop it later
       (window as any).emergencyAudio = audio;
+      
+      // Set alarm active AFTER starting the audio
+      setAlarmActive(true);
     }
   }, [countdown, alarmActive]);
 
+  // Auto SOS escalation timer - triggers SOS call automatically after 20 seconds of alarm
+  useEffect(() => {
+    if (!alarmActive || status === 'safe') {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setAutoSosCountdown((prev) => {
+        if (prev <= 1) {
+          // Auto-trigger SOS call
+          triggerSOS();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [alarmActive, status, triggerSOS]);
+
   const handleSafe = () => {
     setStatus('safe');
+    setAutoSosCountdown(20); // Reset auto SOS countdown
     setTimeout(() => onClose(), 1000);
   };
 
   const handleNotSafe = () => {
     setStatus('emergency');
+    
+    // Play emergency sound immediately
+    if (!(window as any).emergencyAudio) {
+      const audio = new Audio('/Police.mp3');
+      audio.loop = true;
+      audio.play().catch(console.error);
+      (window as any).emergencyAudio = audio;
+    }
+    
     setAlarmActive(true);
   };
 
   const stopAlarm = () => {
     setAlarmActive(false);
+    setAutoSosCountdown(20); // Reset auto SOS countdown
     // Stop police sound
     if ((window as any).emergencyAudio) {
       (window as any).emergencyAudio.pause();
       (window as any).emergencyAudio = null;
     }
-    onClose();
-  };
-
-  const triggerSOS = () => {
-    // This would trigger actual emergency call
-    console.log('SOS TRIGGERED - Emergency services contacted');
-    alert('Emergency services have been notified. Help is on the way!');
     onClose();
   };
 
@@ -133,7 +168,7 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
           )}
 
           {/* Alarm Active */}
-          {alarmActive && (
+          {alarmActive && status !== 'safe' && (
             <div className="text-center space-y-4">
               <div className="text-2xl font-bold text-emergency emergency-pulse">
                 🚨 EMERGENCY ALARM 🚨
@@ -150,6 +185,9 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
                     ))}
                   </div>
                 </div>
+              </div>
+              <div className="text-lg font-semibold text-warning">
+                Auto SOS in: {autoSosCountdown}s
               </div>
             </div>
           )}
