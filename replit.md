@@ -88,10 +88,12 @@ Sarthi is a comprehensive safety platform that protects vulnerable communities t
 - `GET /api/schemes?search=&category=&level=` - Fetch government schemes with filters
 
 ### Safety & Crime Data
-- `GET /api/crime-zones` - Fetch danger zones with risk levels
-- `POST /api/analyze-location` - AI risk analysis for location
-- `POST /api/safety-checkin` - Save safety check-in
-- `GET /api/safety-history/:userId` - User's safety history
+- `GET /api/crime-zones` - Fetch all danger zones with aggregated crime data and risk levels
+- `GET /api/crime-data?search=` - Search crime data by state/district name
+- `GET /api/state-crime/:state` - Get detailed crime breakdown for specific state
+- `POST /api/analyze-location` - AI risk analysis for coordinates using GPT-5
+- `POST /api/safety-checkin` - Save safety check-in to Firebase
+- `GET /api/safety-history/:userId` - User's safety history from Firebase
 
 ### Weather & Disasters
 - `GET /api/weather?location=` - Current weather and forecast
@@ -136,13 +138,21 @@ Sarthi is a comprehensive safety platform that protects vulnerable communities t
 
 ## Key Features Implementation
 
-### Emergency Alert System
-1. Detects when user enters danger zone
-2. Shows modal: "You are in a Danger Zone. Are you Safe?"
-3. 30-second countdown timer
-4. If no response → Triggers emergency alarm
-5. Alarm plays for additional time
-6. If alarm not stopped → Auto-SOS call initiated
+### Automated Emergency Alert System
+**Complete Automation Flow:**
+1. **Location Detection**: Continuous GPS tracking monitors user proximity to danger zones
+2. **Browser Notification**: Automatic alert when entering high/critical risk areas
+3. **Emergency Modal**: Opens with "You are in a Danger Zone. Are you Safe?"
+4. **30-Second Countdown**: User has 30s to respond "I'm Safe" or "I Need Help"
+5. **Emergency Siren**: If no response, plays Police.mp3 siren sound (looping)
+6. **20-Second Auto-SOS**: After siren starts, 20s countdown to automatic SOS call
+7. **Auto-SOS Call**: If still no response, automatically triggers emergency services contact
+
+**User Control Points:**
+- Click "I'm Safe" → Stops all escalation
+- Click "Stop Alarm" → Stops siren and closes modal
+- Manual "I Need Help" → Immediately triggers siren and auto-SOS countdown
+- All timers reset properly for subsequent alerts
 
 ### AI Integration
 - **Safety Risk Analysis**: GPT-5 analyzes location coordinates and provides risk assessment
@@ -162,16 +172,14 @@ npm run dev  # Starts both frontend (Vite) and backend (Express)
 
 The app runs on a single port with Vite serving the frontend and proxying API requests to Express.
 
-## Recent Changes (Oct 15, 2025)
-- ✅ Implemented complete frontend with all three main sections
-- ✅ Firebase authentication with Google Sign-In
-- ✅ OpenAI integration for AI predictions
-- ✅ CSV/PDF data parsing for schemes and crime data
-- ✅ Real-time weather API integration
-- ✅ Interactive maps with Leaflet
-- ✅ Emergency alert system with countdown and alarm
-- ✅ Dark mode support
-- ✅ Responsive design for mobile/tablet/desktop
+## Recent Changes (Oct 16, 2025)
+- ✅ **Crime Data Integration**: Parsed comprehensive crime dataset (2001-2015+) with 7 crime types across all Indian states/districts
+- ✅ **Women Safety Restructure**: Two-tab system with "Risk Area Zones" (state/district crime search) and "Government Schemes" (paginated, 10 per page)
+- ✅ **Automated Location Tracking**: Continuous GPS monitoring with geolocation API to detect danger zone proximity
+- ✅ **Complete Alert Automation**: Full escalation flow - location detection → browser notification → 30s countdown → emergency siren → 20s auto-SOS countdown → automatic SOS call
+- ✅ **Enhanced Danger Map**: Real crime data visualization with color-coded risk levels (low/medium/high/critical) using Leaflet
+- ✅ **Backend API**: Crime data endpoints for state/district queries, risk analysis, and location-based searches
+- ✅ **Production Ready**: All TypeScript errors resolved, runtime bugs fixed, tested and verified by architect
 
 ## Future Enhancements
 - [ ] Complete crop disease detection with image upload
