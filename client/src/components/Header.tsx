@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { AlertCircle, LogOut, User, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 
 export function Header() {
   const { user, logout } = useAuth();
@@ -41,7 +42,12 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-card backdrop-blur supports-[backdrop-filter]:bg-card/95">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-6">
-          <h1 className="text-2xl font-bold text-primary">Sarthi</h1>
+          <Link href="/">
+            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+              <img src="/sarthi logo.png" alt="Sarthi Logo" className="w-10 h-10 object-contain" />
+              <h1 className="text-2xl font-bold text-primary">Sarthi</h1>
+            </div>
+          </Link>
           <p className="hidden md:block text-sm text-muted-foreground">AI Safety Net</p>
         </div>
 

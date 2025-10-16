@@ -11,18 +11,17 @@ let schemesCache: any[] = [];
 let crimeDataCache: any[] = [];
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize data on server start
+  // Initialize clean data on server start
   try {
     schemesCache = await parseSchemesCSV();
-    const crimeData = await parseCrimePDF();
-    crimeDataCache = crimeData.map(crime => ({
+    crimeDataCache = await parseCrimePDF();
+    crimeDataCache = crimeDataCache.map(crime => ({
       ...crime,
       location: getStateCoordinates(crime.state),
     }));
     console.log(`✅ Loaded ${schemesCache.length} schemes and ${crimeDataCache.length} crime zones`);
   } catch (error) {
     console.error('❌ Data loading error:', error);
-    // Set fallback data to prevent crashes
     schemesCache = [];
     crimeDataCache = [];
   }
@@ -190,8 +189,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
       
-      // Sort by total crimes (descending)
-      filtered.sort((a, b) => b.totalCrimes - a.totalCrimes);
+      // Ensure clean data and sort by total crimes
+      filtered = filtered.filter(zone => 
+        zone.state && 
+        typeof zone.state === 'string' &&
+        zone.state.length > 0 &&
+        !zone.state.includes('<<') &&
+        !zone.state.includes('TYPE') &&
+        typeof zone.totalCrimes === 'number' && 
+        zone.totalCrimes > 0 &&
+        zone.year >= 2020 &&
+        zone.year <= 2025
+      ).sort((a, b) => b.totalCrimes - a.totalCrimes);
       
       res.json(filtered);
     } catch (error) {
