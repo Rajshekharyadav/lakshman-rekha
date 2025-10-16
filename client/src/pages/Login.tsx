@@ -23,8 +23,10 @@ export default function Login() {
     confirmPassword: '',
   });
 
+  // Redirect if already logged in
   if (user) {
-    setLocation('/');
+    setTimeout(() => setLocation('/'), 0);
+    return null;
   }
 
   const handleCredentialsAuth = async (e: React.FormEvent) => {

@@ -37,7 +37,7 @@ export function DangerZoneMap() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    // Get user location
+    // Get user location with high accuracy
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setUserLocation({
@@ -48,6 +48,11 @@ export function DangerZoneMap() {
       () => {
         // Default to India center if permission denied
         setUserLocation({ lat: 20.5937, lng: 78.9629 });
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
       }
     );
   }, []);
@@ -78,13 +83,17 @@ export function DangerZoneMap() {
     // Add user location marker with pulsing effect
     const userIcon = L.divIcon({
       className: 'user-location-marker',
-      html: `<div class="w-4 h-4 bg-primary rounded-full border-2 border-white shadow-lg animate-pulse"></div>`,
-      iconSize: [16, 16],
+      html: `<div style="width: 20px; height: 20px; background: #2563eb; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(37, 99, 235, 0.5); animation: pulse 2s infinite;"></div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
     });
 
     L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
       .addTo(mapRef.current)
-      .bindPopup('Your Location');
+      .bindPopup(`<div><strong>Your Location</strong><br/>Lat: ${userLocation.lat.toFixed(6)}<br/>Lng: ${userLocation.lng.toFixed(6)}</div>`);
+
+    // Center map on user location
+    mapRef.current.setView([userLocation.lat, userLocation.lng], 10);
 
     // Add danger zones
     sampleZones.forEach((zone) => {
@@ -106,13 +115,18 @@ export function DangerZoneMap() {
         `);
     });
 
+    // Cleanup function moved outside to prevent memory leaks
+  }, [userLocation]);
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
-  }, [userLocation]);
+  }, []);
 
   return (
     <div className="space-y-4">

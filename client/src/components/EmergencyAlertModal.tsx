@@ -26,6 +26,11 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
       setCountdown(30);
       setAlarmActive(false);
       setStatus('pending');
+      // Stop any playing audio
+      if ((window as any).emergencyAudio) {
+        (window as any).emergencyAudio.pause();
+        (window as any).emergencyAudio = null;
+      }
       return;
     }
 
@@ -45,6 +50,13 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
   useEffect(() => {
     if (countdown === 0 && !alarmActive) {
       setAlarmActive(true);
+      // Play police sound after 30 seconds
+      const audio = new Audio('/Police.mp3');
+      audio.loop = true;
+      audio.play().catch(console.error);
+      
+      // Store audio reference to stop it later
+      (window as any).emergencyAudio = audio;
     }
   }, [countdown, alarmActive]);
 
@@ -60,6 +72,11 @@ export function EmergencyAlertModal({ open, onClose, location }: EmergencyAlertM
 
   const stopAlarm = () => {
     setAlarmActive(false);
+    // Stop police sound
+    if ((window as any).emergencyAudio) {
+      (window as any).emergencyAudio.pause();
+      (window as any).emergencyAudio = null;
+    }
     onClose();
   };
 

@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         console.error('Backend sync error:', error);
+        setLoading(false);
       }
     }
   };

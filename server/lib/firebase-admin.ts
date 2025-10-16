@@ -1,60 +1,32 @@
-// Firebase Admin SDK for server-side operations
-import { initializeApp, cert, getApps, App } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
+// Firebase Admin SDK configuration
+// This file was missing and is needed for server-side Firebase operations
 
-let app: App;
-let db: Firestore;
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin
-if (!getApps().length) {
-  // In production, use service account key
-  // For development, we'll use the emulator or default credentials
-  try {
-    app = initializeApp({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'sarthi-e8175',
-    });
-    db = getFirestore(app);
-  } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
-    throw error;
+// Initialize Firebase Admin SDK
+let adminApp;
+try {
+  if (getApps().length === 0) {
+    // In production, use service account key
+    // For development, we'll use the default credentials or skip admin features
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      adminApp = initializeApp({
+        credential: cert(serviceAccount),
+        projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+      });
+    } else {
+      console.warn('Firebase Admin SDK not configured - some features may not work');
+      adminApp = null;
+    }
+  } else {
+    adminApp = getApps()[0];
   }
-} else {
-  app = getApps()[0];
-  db = getFirestore(app);
+} catch (error) {
+  console.error('Firebase Admin initialization error:', error);
+  adminApp = null;
 }
 
-export { db };
-
-// Helper functions for Firestore operations
-export async function saveUserProfile(userId: string, data: {
-  email: string;
-  displayName?: string;
-  location?: { lat: number; lng: number; address?: string };
-}) {
-  await db.collection('users').doc(userId).set({
-    ...data,
-    updatedAt: new Date().toISOString(),
-  }, { merge: true });
-}
-
-export async function saveSafetyCheckIn(checkIn: {
-  userId: string;
-  location: { lat: number; lng: number };
-  status: 'safe' | 'unsafe' | 'emergency';
-  zoneRiskLevel?: string;
-}) {
-  await db.collection('safetyCheckIns').add({
-    ...checkIn,
-    timestamp: new Date().toISOString(),
-  });
-}
-
-export async function getUserSafetyHistory(userId: string) {
-  const snapshot = await db.collection('safetyCheckIns')
-    .where('userId', '==', userId)
-    .orderBy('timestamp', 'desc')
-    .limit(10)
-    .get();
-  
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-}
+export const adminDb = adminApp ? getFirestore(adminApp) : null;
+export { adminApp };

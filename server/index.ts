@@ -43,17 +43,22 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    console.error('Server error:', err);
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (error) {
+      console.warn('Build directory not found, using Vite dev server');
+      await setupVite(app, server);
+    }
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
@@ -61,11 +66,19 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  server.listen(port, "0.0.0.0", (err) => {
+    if (err) {
+      if (err.code === 'EADDRINUSE') {
+        const newPort = port + 1;
+        console.log(`Port ${port} in use, trying ${newPort}`);
+        server.listen(newPort, "0.0.0.0", () => {
+          log(`serving on port ${newPort}`);
+        });
+      } else {
+        throw err;
+      }
+    } else {
+      log(`serving on port ${port}`);
+    }
   });
 })();

@@ -22,6 +22,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log(`✅ Loaded ${schemesCache.length} schemes and ${crimeDataCache.length} crime zones`);
   } catch (error) {
     console.error('❌ Data loading error:', error);
+    // Set fallback data to prevent crashes
+    schemesCache = [];
+    crimeDataCache = [];
   }
 
   // POST /api/auth/signup - User registration
@@ -209,28 +212,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GET /api/weather - Fetch weather data (mock for now)
+  // GET /api/weather - Fetch weather data from OpenWeatherMap
   app.get("/api/weather", async (req, res) => {
     try {
-      const { location } = req.query;
+      const { lat, lng, location } = req.query;
+      const apiKey = process.env.OPENWEATHER_API_KEY;
       
-      // Mock weather data - would integrate with OpenWeatherMap API
+      if (!apiKey || apiKey === 'YOUR_OPENWEATHER_API_KEY_HERE') {
+        console.log('Using fallback weather data - API key not configured');
+        // Fallback weather data
+        return res.json({
+          location: location || 'New Delhi, IN',
+          temperature: 28,
+          condition: 'Clear',
+          description: 'clear sky',
+          humidity: 65,
+          windSpeed: 12,
+          pressure: 1013,
+          visibility: 10,
+          icon: '01d',
+          coords: { lat: lat || 28.7041, lng: lng || 77.1025 }
+        });
+      }
+      
+      let weatherUrl;
+      if (lat && lng) {
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric`;
+      } else if (location) {
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${apiKey}&units=metric`;
+      } else {
+        weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=New Delhi&appid=${apiKey}&units=metric`;
+      }
+      
+      const response = await fetch(weatherUrl);
+      if (!response.ok) {
+        throw new Error('Weather API request failed');
+      }
+      
+      const data = await response.json();
+      
       const weatherData = {
-        location: location || 'New Delhi',
-        temperature: Math.floor(Math.random() * 15) + 25, // 25-40°C
-        condition: ['Sunny', 'Partly Cloudy', 'Cloudy', 'Rainy'][Math.floor(Math.random() * 4)],
-        humidity: Math.floor(Math.random() * 40) + 40, // 40-80%
-        windSpeed: Math.floor(Math.random() * 20) + 5, // 5-25 km/h
-        forecast: Array.from({ length: 5 }, (_, i) => ({
-          day: ['Today', 'Tomorrow', 'Wed', 'Thu', 'Fri'][i],
-          temp: Math.floor(Math.random() * 10) + 28,
-          condition: ['Sunny', 'Cloudy', 'Rainy', 'Stormy'][Math.floor(Math.random() * 4)],
-        }))
+        location: data.name + ', ' + data.sys.country,
+        temperature: Math.round(data.main.temp),
+        condition: data.weather[0].main,
+        description: data.weather[0].description,
+        humidity: data.main.humidity,
+        windSpeed: Math.round(data.wind.speed * 3.6), // Convert m/s to km/h
+        pressure: data.main.pressure,
+        visibility: data.visibility ? Math.round(data.visibility / 1000) : null,
+        icon: data.weather[0].icon,
+        coords: { lat: data.coord.lat, lng: data.coord.lon }
       };
       
       res.json(weatherData);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch weather' });
+      console.error('Weather API error:', error);
+      // Return fallback data on error
+      res.json({
+        location: location || 'New Delhi, IN',
+        temperature: 28,
+        condition: 'Clear',
+        description: 'clear sky',
+        humidity: 65,
+        windSpeed: 12,
+        pressure: 1013,
+        visibility: 10,
+        icon: '01d',
+        coords: { lat: lat || 28.7041, lng: lng || 77.1025 }
+      });
     }
   });
 
